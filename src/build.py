@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the Dice Puzzle game (dist/index.html) from source + data."""
 import json
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -31,6 +32,16 @@ def main():
         out = out.replace(ph, val)
     DIST.mkdir(exist_ok=True)
     (DIST / "index.html").write_text(out, encoding="utf-8")
+
+    # Copy PWA assets (manifest, service worker, icons) into dist/, and add
+    # .nojekyll so GitHub Pages serves the directory as-is (no Jekyll processing).
+    pwa_src = SRC / "pwa"
+    if pwa_src.is_dir():
+        for f in pwa_src.iterdir():
+            if f.is_file():
+                shutil.copy2(f, DIST / f.name)
+    (DIST / ".nojekyll").write_text("", encoding="utf-8")
+
     print(f"Wrote {DIST / 'index.html'} ({len(out):,} bytes)")
     print(f"English words: {en_words.count(chr(10)) + 1:,}")
     print(f"Farsi words: {len(fa_words):,}")

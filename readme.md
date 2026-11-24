@@ -30,7 +30,8 @@ with one toggle.
 
 Open dist/index.html in any modern browser. No server, no build step, no
 internet required — both dictionaries (315,100 English words and 19,625 Farsi
-words) are embedded in the file.
+words) are embedded in the file. Or visit the live GitHub Pages deployment (see
+below).
 
 ## Build from source
 
@@ -43,7 +44,37 @@ or use the convenience wrapper:
     ./build.sh
 
 This reads src/template.html and the files in data/, injects both dictionaries
-and dice configs, and writes dist/index.html (about 3.6 MB, self-contained).
+and dice configs, and writes dist/index.html (about 3.6 MB, self-contained). It
+also copies the PWA assets (manifest, service worker, icons) and a .nojekyll
+file into dist/.
+
+## Deploy to GitHub Pages
+
+The repo includes a GitHub Actions workflow (.github/workflows/deploy.yml) that
+builds dist/ and publishes it to GitHub Pages on every push to main. To use it:
+
+1. Push this repo to GitHub.
+2. In the repo: Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+3. Push to main (or run the workflow manually). The workflow builds dist/ and deploys it.
+4. The game is live at: https://&lt;your-username&gt;.github.io/&lt;repo-name&gt;/
+
+The app is a single self-contained HTML file with no external requests, so it
+works at any subpath — no base-path configuration needed.
+
+## Install as a PWA
+
+The app is a Progressive Web App — installable and fully offline:
+
+- **Install**: open the Pages URL in Chrome/Edge (desktop) or any Chromium
+  browser on Android; use the install icon in the address bar (or menu →
+  Install app). On iOS Safari, use Share → Add to Home Screen.
+- **Offline**: a service worker (sw.js) caches the whole game (including both
+  embedded dictionaries) on first visit, so it launches with no network.
+- **Icons / manifest**: src/pwa/manifest.json plus the icons in src/pwa/ define
+  the app name, theme color, and icons (including a maskable icon).
+
+Reinstalling after an update: the service worker bumps its cache version on
+deploy, so the new version activates on next launch.
 
 ## Project layout
 
@@ -52,16 +83,24 @@ and dice configs, and writes dist/index.html (about 3.6 MB, self-contained).
     ├── design.md            design document
     ├── .gitignore
     ├── build.sh             convenience wrapper for src/build.py
+    ├── .github/workflows/deploy.yml   builds + deploys dist/ to GitHub Pages
     ├── src/
     │   ├── build.py         assembles dist/index.html from template + data
-    │   └── template.html    HTML/CSS/JS template with __placeholders__
+    │   ├── template.html    HTML/CSS/JS template with __placeholders__
+    │   └── pwa/             PWA source assets (copied into dist/ by build.py)
+    │       ├── manifest.json        web app manifest
+    │       ├── sw.js                service worker (offline cache)
+    │       └── icon-{192,512,180}.png  app / maskable icons
     ├── data/
     │   ├── english_words.txt        315,100 English words (one per line)
     │   ├── english_dice.json        12 English dice + Scrabble letter values
     │   ├── farsi_words.txt          19,625 Farsi words (one per line)
     │   └── farsi_dice_config.json   12 Farsi dice + Persian letter values
     └── dist/
-        └── index.html       the built, self-contained game
+        ├── index.html       the built, self-contained game
+        ├── manifest.json    PWA manifest
+        ├── sw.js            service worker
+        └── icon-*.png       PWA icons
 
 ## Data sources
 
