@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dice Word Game</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Vazirmatn','IRANSans','Tahoma','Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 50%, #1e3a5f 100%);
+    color: #fff; overflow: hidden; -webkit-tap-highlight-color: transparent;
+  }
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  header {
+    padding: clamp(8px,1.5vh,14px) clamp(12px,3vw,24px);
+    background: rgba(0,0,0,0.28);
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 12px; flex-wrap: wrap; box-shadow: 0 2px 10px rgba(0,0,0,0.25); z-index: 10;
+  }
+  h1 { font-size: clamp(1.05rem,3.2vw,1.55rem); font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; }
+  .header-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  /* Language toggle */
+  .lang-toggle { display: flex; background: rgba(0,0,0,0.3); border-radius: 999px; padding: 3px; }
+  .lang-toggle button {
+    font-family: inherit; font-size: clamp(0.78rem,2vw,0.95rem); font-weight: 700;
+    padding: 5px 14px; border: none; border-radius: 999px;
+    background: transparent; color: rgba(255,255,255,0.7); cursor: pointer;
+    box-shadow: none; transition: background 0.15s, color 0.15s;
+  }
+  .lang-toggle button.active { background: #ffd84d; color: #1e3a5f; }
+
+  .score-block { display: flex; gap: 8px; flex-wrap: wrap; font-size: clamp(0.85rem,2.3vw,1rem); }
+  .score-pill { padding: 5px 12px; background: rgba(255,255,255,0.12); border-radius: 999px; font-weight: 600; white-space: nowrap; }
+  .score-pill b { color: #ffd84d; font-weight: 800; }
+
+  .controls {
+    padding: clamp(6px,1.2vh,10px) clamp(10px,2vw,16px);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.18);
+  }
+  button {
+    font-family: inherit; font-size: clamp(0.85rem,2.2vw,1rem);
+    padding: 9px 18px; border: none; border-radius: 8px;
+    background: #fff; color: #1e3a5f; font-weight: 700; cursor: pointer;
+    transition: transform 0.1s ease, box-shadow 0.15s ease, background 0.15s;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25); -webkit-user-select: none; user-select: none;
+  }
+  button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.35); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button.primary { background: #ffd84d; }
+  button.secondary { background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.3); }
+  button.find-btn { background: #6dd5ed; color: #0d2b4a; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  .dict-status { font-size: 0.8rem; color: rgba(255,255,255,0.6); padding: 2px 8px; white-space: nowrap; }
+
+  :root { --die-size: clamp(54px,8.5vw,76px); --cell-size: calc(var(--die-size) + 6px); }
+  @media (max-width: 640px) { :root { --die-size: clamp(46px,12vw,62px); } }
+
+  main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  #table {
+    flex: 1; position: relative; overflow: hidden;
+    margin: clamp(8px,1.5vh,14px); border-radius: 14px;
+    background-color: #0d2b4a;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px);
+    background-size: var(--cell-size) var(--cell-size); background-position: 0 0;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+    touch-action: none;
+  }
+  #table::before {
+    content: ''; position: absolute; inset: 0;
+    background: repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 12px, transparent 12px 24px);
+    pointer-events: none; z-index: 0;
+  }
+  .hint {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    text-align: center; font-size: clamp(0.9rem,2.5vw,1.1rem);
+    opacity: 0.82; pointer-events: none; padding: 0 20px; line-height: 1.7; z-index: 1;
+  }
+  .hint .big { font-size: clamp(1.3rem,4vw,1.8rem); display: block; margin-bottom: 8px; opacity: 0.9; }
+
+  .snap-preview {
+    position: absolute; width: var(--die-size); height: var(--die-size);
+    border: 2px dashed rgba(255,216,77,0.85); border-radius: 14%;
+    background: rgba(255,216,77,0.14); pointer-events: none; display: none; z-index: 1;
+    transition: left 0.06s linear, top 0.06s linear;
+  }
+
+  .die {
+    position: absolute; width: var(--die-size); height: var(--die-size);
+    cursor: grab; -webkit-user-select: none; user-select: none; touch-action: none;
+    will-change: transform, left, top;
+    background: linear-gradient(145deg, #ffffff 0%, #e0e4ec 100%);
+    border: 2px solid #1e3a5f; border-radius: 14%;
+    display: flex; align-items: center; justify-content: center; color: #1e3a5f;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6);
+    z-index: 2;
+    transition: left 0.18s cubic-bezier(0.4,1.4,0.5,1), top 0.18s cubic-bezier(0.4,1.4,0.5,1), transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
+  }
+  .die:hover { transform: translateY(-3px); }
+  .die.dragging { z-index: 100; cursor: grabbing; transition: none; transform: translateY(-6px) scale(1.04); box-shadow: 0 14px 20px rgba(0,0,0,0.55), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
+  .die .letter { font-size: calc(var(--die-size) * 0.55); font-weight: 900; line-height: 1; pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.5); }
+  .die .pts { position: absolute; bottom: calc(var(--die-size) * 0.06); right: calc(var(--die-size) * 0.1); font-size: calc(var(--die-size) * 0.2); color: #4a5a72; font-weight: 700; pointer-events: none; line-height: 1; }
+  /* RTL: move pts to bottom-left */
+  html[dir="rtl"] .die .pts { right: auto; left: calc(var(--die-size) * 0.1); }
+  html[dir="rtl"] .die .letter { font-size: calc(var(--die-size) * 0.6); font-weight: 700; }
+
+  /* Tagged die — gold ring */
+  .die.tagged { border-color: #ffd84d; border-width: 3px; box-shadow: 0 0 0 3px rgba(255,216,77,0.55), 0 4px 10px rgba(0,0,0,0.45), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
+  .die.tagged .pts { color: #b8860b; }
+
+  /* Structure (connected group) — cyan glow when grabbed via long-press */
+  .die.structure { border-color: #6dd5ed; box-shadow: 0 0 0 3px rgba(109,213,237,0.6), 0 6px 14px rgba(0,0,0,0.5), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); z-index: 3; }
+  @keyframes structureEngage { 0% { transform: scale(1); } 45% { transform: scale(1.07); } 100% { transform: scale(1); } }
+  .die.structure.engage { animation: structureEngage 0.28s ease-out; }
+
+  .die.valid { background: linear-gradient(145deg, #c8f0d0 0%, #7fd495 100%) !important; border-color: #1a4a26; }
+  .die.valid .letter { color: #1a4a26; }
+  .die.invalid { background: linear-gradient(145deg, #f7c8c8 0%, #d97a7c 100%) !important; border-color: #5a1a1a; }
+
+  @keyframes dropIn {
+    0% { transform: translateY(-110vh) rotate(-8deg); opacity: 0; }
+    15% { opacity: 1; }
+    60% { transform: translateY(12px) rotate(2deg); }
+    75% { transform: translateY(-8px) rotate(-1deg); }
+    88% { transform: translateY(4px) rotate(0.5deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+  .die.throwing { animation: dropIn 0.85s cubic-bezier(0.5,0,0.5,1) both; }
+
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px; z-index: 1000; -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #f7f9fc; color: #1e3a5f; border-radius: 14px;
+    padding: clamp(16px,3vw,24px); max-width: 560px; width: 100%; max-height: 85vh; overflow-y: auto;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5); animation: pop 0.2s ease-out;
+  }
+  @keyframes pop { 0% { transform: scale(0.92); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .modal h2 { font-size: clamp(1.2rem,3vw,1.5rem); margin-bottom: 14px; font-weight: 800; }
+  .modal p { font-size: 0.92rem; line-height: 1.65; margin-bottom: 10px; color: #2c4866; }
+  .modal .close-btn { margin-top: 14px; width: 100%; }
+
+  .total-banner {
+    font-size: clamp(1.05rem,2.6vw,1.3rem); font-weight: 800; text-align: center; padding: 14px;
+    background: linear-gradient(135deg, #ffd84d, #ffb800); color: #1e3a5f; border-radius: 10px; margin-bottom: 14px;
+  }
+  .total-banner.fail { background: linear-gradient(135deg, #f7c8c8, #d97a7c); }
+  .word-list { list-style: none; }
+  .word-list li { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .word-list li:last-child { border-bottom: none; }
+  .word-list .word { font-weight: 800; font-size: clamp(1.1rem,3vw,1.35rem); display: flex; align-items: center; gap: 8px; }
+  .word-list .dir { font-size: 0.72rem; color: #6b7280; font-weight: 700; padding: 2px 6px; background: #eef2f7; border-radius: 4px; }
+  .word-list .status { font-size: 0.9rem; font-weight: 600; white-space: nowrap; color: #2e7d32; }
+
+  /* Find-words results */
+  .find-results { max-height: 55vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; margin-top: 8px; }
+  .find-results .fw-item { display: flex; justify-content: space-between; align-items: center; padding: 7px 12px; border-bottom: 1px solid #eef2f7; font-size: 0.95rem; }
+  .find-results .fw-item:nth-child(odd) { background: #fafbfd; }
+  .find-results .fw-item:last-child { border-bottom: none; }
+  .find-results .fw-word { font-weight: 700; font-size: 1.05rem; }
+  .find-results .fw-meta { color: #6b7280; font-size: 0.82rem; white-space: nowrap; }
+  .find-results .fw-meta b { color: #2e7d32; }
+  .find-stats { font-size: 0.88rem; color: #4a5a72; margin-bottom: 6px; padding: 6px 10px; background: #eef2f7; border-radius: 6px; }
+
+  .dist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px,1fr)); gap: 6px; margin-top: 12px; }
+  .dist-cell { padding: 8px 4px; background: #fff; border: 1px solid #d8dee9; border-radius: 8px; text-align: center; }
+  .dist-cell .L { font-size: 1.4rem; font-weight: 700; color: #1e3a5f; display: block; }
+  .dist-cell .N { font-size: 0.78rem; color: #4a5a72; display: block; }
+  .dist-cell .P { font-size: 0.68rem; color: #7a8aa0; display: block; margin-top: 2px; }
+
+  .rules { line-height: 1.7; }
+  .rules ol { padding-left: 22px; margin: 8px 0; }
+  html[dir="rtl"] .rules ol { padding-left: 0; padding-right: 22px; }
+  .rules ol li { margin-bottom: 7px; }
+  .rules .pts-table { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap: 6px; margin-top: 10px; font-size: 0.85rem; }
+  .rules .pts-table div { background: #eef2f7; padding: 4px 8px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1 id="title">🎲 Dice Word Game</h1>
+    <div class="header-right">
+      <div class="lang-toggle">
+        <button id="lang-en" class="active">EN</button>
+        <button id="lang-fa">فا</button>
+      </div>
+      <div class="score-block">
+        <span class="score-pill"><span id="round-label">Round</span>: <b id="round-score">0</b></span>
+        <span class="score-pill"><span id="total-label">Total</span>: <b id="total-score">0</b></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button id="throw-btn" class="primary">🎲 Throw Dice</button>
+    <button id="done-btn" disabled>✓ Done</button>
+    <button id="find-btn" class="find-btn" disabled>🔍 Find Words</button>
+    <button id="clear-tags-btn" class="secondary" disabled>✕ Clear Tags</button>
+    <button id="reset-btn" class="secondary">Reset</button>
+    <button id="help-btn" class="secondary">How to Play</button>
+    <button id="info-btn" class="secondary">Distribution</button>
+    <span class="dict-status" id="dict-status"></span>
+  </div>
+
+  <main>
+    <div id="table">
+      <div class="snap-preview" id="snap-preview"></div>
+      <div class="hint" id="hint"></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="results-modal">
+  <div class="modal">
+    <h2 id="results-title">Round Results</h2>
+    <div class="total-banner" id="total-banner">0</div>
+    <ul class="word-list" id="word-list"></ul>
+    <p id="no-words-msg" style="display:none; color:#c62828; font-weight:600; text-align:center;"></p>
+    <button class="close-btn primary" id="close-results">Continue</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="find-modal">
+  <div class="modal">
+    <h2 id="find-title">Formable Words</h2>
+    <p id="find-desc"></p>
+    <div class="find-stats" id="find-stats"></div>
+    <div class="find-results" id="find-results"></div>
+    <button class="close-btn primary" id="close-find">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="info-modal">
+  <div class="modal">
+    <h2 id="info-title">Letter Distribution</h2>
+    <p id="info-desc1"></p>
+    <p id="info-desc2"></p>
+    <div class="dist-grid" id="dist-grid"></div>
+    <button class="close-btn primary" id="close-info">Close</button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="help-modal">
+  <div class="modal">
+    <h2 id="help-title">How to Play</h2>
+    <div class="rules" id="rules-body"></div>
+    <button class="close-btn primary" id="close-help">Close</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ---------- Embedded data (injected by build script) ---------- */
+const EN_DICE = __EN_DICE__;
+const EN_VALUES = __EN_VALUES__;
+const EN_WORDS_STR = __EN_WORDS__;
+const FA_DICE = __FA_DICE__;
+const FA_VALUES = __FA_VALUES__;
+const FA_WORDS_STR = __FA_WORDS__;
+
+/* ---------- Per-language configuration ---------- */
+const CONFIGS = {
+  en: {
+    dice: EN_DICE, values: EN_VALUES, dir: 'ltr', langAttr: 'en', digits: '0123456789', minLen: 3,
+    wordsStr: EN_WORDS_STR,
+    title: '🎲 Dice Word Game',
+    throwBtn: '🎲 Throw Dice', doneBtn: '✓ Done', findBtn: '🔍 Find Words',
+    clearTags: '✕ Clear Tags', resetBtn: 'Reset', helpBtn: 'How to Play', infoBtn: 'Distribution',
+    roundLabel: 'Round', totalLabel: 'Total',
+    hint: '<span class="big">🎲</span>Press <b>Throw Dice</b> to roll all 12 tiles onto the grid.<br>Drag tiles into a row or column to spell a word. <b>Click a tile to tag it</b>, then <b>Find Words</b> shows all dictionary words formable from the shown letters that contain your tagged letters.',
+    resultsTitle: 'Round Results', noWords: 'No valid words found this round. Try arranging tiles into longer rows or columns.',
+    continueBtn: 'Continue',
+    findTitle: 'Formable Words',
+    findDescTags: 'Dictionary words containing all your <b>tagged letters</b>, formable from the 12 shown tiles:',
+    findDescAll: 'All dictionary words formable from the 12 shown tiles. <b>Click tiles to tag letters</b> and filter to words containing them.',
+    searching: 'Searching dictionary…',
+    foundN: (n) => 'Found ' + n.toLocaleString() + ' word' + (n===1?'':'s'),
+    noMatches: 'No words match. Try tagging fewer or different letters.',
+    closeBtn: 'Close',
+    infoTitle: 'Letter Distribution',
+    infoDesc1: 'The 12 dice × 6 sides = 72 letter faces are distributed by English letter frequency. Frequent letters appear on more faces and are spread across multiple dice.',
+    infoDesc2: 'Each die has 6 distinct letters; every letter of the alphabet that appears in the set is playable.',
+    helpTitle: 'How to Play',
+    rules: '<ol><li>Press <b>Throw Dice</b>. All 12 tiles drop onto the board, each showing a random letter from its 6 faces in a random grid cell.</li><li>Drag any tile to move it. A dashed outline shows the nearest empty grid cell — release and it snaps in. No two tiles share a cell.</li><li><b>Move a whole structure:</b> long-press a tile (hold ~0.4s without moving) to grab its entire connected group — every tile attached to it in a row, column, or shape lights up in cyan and moves together, snapping as one unit so the word you built stays intact.</li><li>Arrange tiles in a <b>horizontal row</b> (read left-to-right) or a <b>vertical column</b> (top-to-bottom) to spell a word. Words must be ≥ 3 letters.</li><li>Press <b>Done</b>. The game finds the <b>longest valid word</b> in each line and scores it by Scrabble letter values (shown in each tile corner).</li><li><b>Tagging & lookup:</b> <b>Click a tile</b> to tag it (gold ring). Press <b>Find Words</b> to see every dictionary word formable from all 12 shown letters that <b>contains your tagged letters</b>. With no tags, it lists all formable words.</li><li>Use the <b>EN / فا</b> toggle to switch between English and Farsi. Total score accumulates across rounds.</li></ol><p><b>Scoring:</b> 1 pt: A E I O U L N R S T · 2: D G · 3: B C M P · 4: F H V W Y · 5: K · 8: J X · 10: Q Z</p>',
+  },
+  fa: {
+    dice: FA_DICE, values: FA_VALUES, dir: 'rtl', langAttr: 'fa', digits: '۰۱۲۳۴۵۶۷۸۹', minLen: 3,
+    wordsStr: FA_WORDS_STR,
+    title: '🎲 بازی تاس کلمات فارسی',
+    throwBtn: '🎲 پرتاب تاس‌ها', doneBtn: '✓ تمام', findBtn: '🔍 جستجوی کلمات',
+    clearTags: '✕ پاک کردن نشان', resetBtn: 'شروع دوباره', helpBtn: 'راهنمای بازی', infoBtn: 'توزیع حروف',
+    roundLabel: 'این دور', totalLabel: 'کل',
+    hint: '<span class="big">🎲</span>دکمه «پرتاب تاس‌ها» را بزنید تا ۱۲ تاس روی شبکه بیفتد.<br>تاس‌ها را در ردیف (افقی) یا ستون (عمودی) بچینید تا کلمه بسازید. برای <b>نشان‌گذاری</b> یک تاس، روی آن <b>کلیک</b> کنید، سپس «جستجوی کلمات» همه کلمات قابل ساخت از تاس‌های روی میز که حروف نشان‌گذاری‌شده را دارند نشان می‌دهد.',
+    resultsTitle: 'نتایج این دور', noWords: 'کلمه‌ای پیدا نشد. تاس‌ها را در ردیف‌ها یا ستون‌های بلندتر بچینید.',
+    continueBtn: 'ادامه',
+    findTitle: 'کلمات قابل ساخت',
+    findDescTags: 'کلمات فرهنگ لغات که دارای همه <b>حروف نشان‌گذاری‌شده</b> هستند و از ۱۲ تاس روی میز قابل ساختند:',
+    findDescAll: 'همه کلمات قابل ساخت از ۱۲ تاس روی میز. برای فیلتر، روی تاس‌ها <b>کلیک</b> کنید تا حروف را نشان‌گذاری کنید.',
+    searching: 'در حال جستجو در فرهنگ لغات…',
+    foundN: (n) => toPersianDigits(n) + ' کلمه پیدا شد',
+    noMatches: 'کلمه‌ای پیدا نشد. حروف نشان‌گذاری‌شده را کمتر یا متفاوت انتخاب کنید.',
+    closeBtn: 'بستن',
+    infoTitle: 'توزیع حروف',
+    infoDesc1: '۷۲ وجه ۱۲ تاس بر اساس فراوانی حروف زبان فارسی توزیع شده است. حروف پرکاربرد روی وجه‌های بیشتری قرار دارند و روی چند تاس مختلف پخش شده‌اند.',
+    infoDesc2: 'هر تاس ۶ حرف متمایز دارد و هر ۳۳ حرف الفبای فارسی (شامل آ) حداقل روی یک وجه قرار دارد.',
+    helpTitle: 'راهنمای بازی',
+    rules: '<ol><li>دکمه «پرتاب تاس‌ها» را بزنید. هر تاس یک حرف تصادفی از ۶ وجه خود را نشان می‌دهد و روی یک خانه شبکه می‌افتد.</li><li>تاس‌ها را با کشیدن جابه‌جا کنید. کادر نقطه‌چین نزدیک‌ترین خانه خالی را نشان می‌دهد. دو تاس در یک خانه جای نمی‌گیرند.</li><li><b>جابه‌جایی کل ساختار:</b> روی یک تاس <b>نگه دارید</b> (حدود ۰٫۴ ثانیه بدون حرکت) تا کل گروه متصل به آن — تاس‌های چسبیده در ردیف، ستون یا شکل — با رنگ فیروزه‌ای مشخص شوند و با هم حرکت کنند و به صورت یک گروه چفت شوند تا کلمه‌ای که ساخته‌اید دست‌نخورده بماند.</li><li>تاس‌ها را در یک <b>ردیف افقی</b> (خوانده از راست به چپ) یا <b>ستون عمودی</b> (از بالا به پایین) بچینید تا کلمه بسازید. کلمات باید حداقل ۳ حرف باشند.</li><li>دکمه «تمام» را بزنید. بازی در هر خط <b>بلندترین کلمه معتبر</b> را پیدا کرده و امتیاز می‌دهد.</li><li><b>نشان‌گذاری و جستجو:</b> روی یک تاس <b>کلیک</b> کنید تا نشان‌گذاری شود (حلقه طلایی). دکمه «جستجوی کلمات» همه کلمات قابل ساخت از ۱۲ تاس که <b>حروف نشان‌گذاری‌شده</b> را دارند نشان می‌دهد. بدون نشان، همه کلمات قابل ساخت را نشان می‌دهد.</li><li>با دکمه <b>EN / فا</b> بین انگلیسی و فارسی جابه‌جا شوید. امتیاز کل در طول بازی جمع می‌شود.</li></ol>',
+  },
+};
+
+/* ---------- State ---------- */
+let lang = 'en';
+let dict = new Set();
+let wordsArr = [];
+let diceState = [];
+let totalScore = 0;
+
+const $ = (id) => document.getElementById(id);
+const table = $('table'), throwBtn = $('throw-btn'), doneBtn = $('done-btn'),
+      findBtn = $('find-btn'), clearTagsBtn = $('clear-tags-btn'), resetBtn = $('reset-btn'),
+      helpBtn = $('help-btn'), infoBtn = $('info-btn'), hintEl = $('hint'),
+      roundScoreEl = $('round-score'), totalScoreEl = $('total-score'),
+      resultsModal = $('results-modal'), infoModal = $('info-modal'), helpModal = $('help-modal'),
+      findModal = $('find-modal'), wordListEl = $('word-list'), totalBanner = $('total-banner'),
+      distGrid = $('dist-grid'), snapPreview = $('snap-preview'), dictStatus = $('dict-status'),
+      noWordsMsg = $('no-words-msg'), rulesBody = $('rules-body'),
+      findResults = $('find-results'), findStats = $('find-stats'), findDesc = $('find-desc');
+
+function cfg() { return CONFIGS[lang]; }
+function toPersianDigits(n) { const m = '۰۱۲۳۴۵۶۷۸۹'; return String(n).replace(/\d/g, d => m[+d]); }
+function digits(n) { return lang === 'fa' ? toPersianDigits(n) : String(n); }
+function letterValue(l) {
+  const v = cfg().values;
+  // dict words are lowercase (Persian has no case); EN_VALUES uses uppercase keys.
+  if (v[l] !== undefined) return v[l];
+  const up = l.toUpperCase();
+  if (v[up] !== undefined) return v[up];
+  return 1;
+}
+function wordScore(w) { let s = 0; for (const c of w) s += letterValue(c); return s; }
+
+/* ---------- Language switching ---------- */
+function loadDict() {
+  wordsArr = cfg().wordsStr.split('\n');
+  dict = new Set(wordsArr);
+}
+function updateUITexts() {
+  const c = cfg();
+  document.documentElement.dir = c.dir;
+  document.documentElement.lang = c.langAttr;
+  document.title = c.title;
+  $('title').textContent = c.title;
+  throwBtn.textContent = c.throwBtn;
+  doneBtn.textContent = c.doneBtn;
+  findBtn.textContent = c.findBtn;
+  clearTagsBtn.textContent = c.clearTags;
+  resetBtn.textContent = c.resetBtn;
+  helpBtn.textContent = c.helpBtn;
+  infoBtn.textContent = c.infoBtn;
+  $('round-label').textContent = c.roundLabel;
+  $('total-label').textContent = c.totalLabel;
+  hintEl.innerHTML = c.hint;
+  $('results-title').textContent = c.resultsTitle;
+  noWordsMsg.textContent = c.noWords;
+  $('close-results').textContent = c.continueBtn;
+  $('find-title').textContent = c.findTitle;
+  $('close-find').textContent = c.closeBtn;
+  $('info-title').textContent = c.infoTitle;
+  $('info-desc1').textContent = c.infoDesc1;
+  $('info-desc2').textContent = c.infoDesc2;
+  $('help-title').textContent = c.helpTitle;
+  rulesBody.innerHTML = c.rules;
+  dictStatus.textContent = '📚 ' + digits(dict.size) + (lang==='fa'?' کلمه':' words');
+  $('lang-en').classList.toggle('active', lang === 'en');
+  $('lang-fa').classList.toggle('active', lang === 'fa');
+  roundScoreEl.textContent = digits(0);
+  totalScoreEl.textContent = digits(totalScore);
+}
+function switchLang(newLang) {
+  if (newLang === lang) return;
+  lang = newLang;
+  loadDict();
+  updateUITexts();
+  resetGame();
+}
+
+/* ---------- Grid helpers ---------- */
+function getCellSize() {
+  const bg = getComputedStyle(table).backgroundSize;
+  const m = bg.match(/(\d+(?:\.\d+)?)px/);
+  return m ? parseFloat(m[1]) : 76;
+}
+function getDieSize() { return getCellSize() - 6; }
+function getGridDims() {
+  const rect = table.getBoundingClientRect();
+  const cell = getCellSize();
+  return { cols: Math.max(1, Math.floor(rect.width / cell)), rows: Math.max(1, Math.floor(rect.height / cell)), cell, rect };
+}
+function cellToPx(col, row) {
+  const cell = getCellSize(), die = getDieSize(), offset = (cell - die) / 2;
+  return { x: col * cell + offset, y: row * cell + offset };
+}
+function cellCenterPx(col, row) {
+  const cell = getCellSize();
+  return { x: col * cell + cell / 2, y: row * cell + cell / 2 };
+}
+function clearDice() { diceState.forEach(d => d.element.remove()); diceState = []; }
+function clearHighlights() { diceState.forEach(d => d.element.classList.remove('valid', 'invalid')); }
+function clearTags() { diceState.forEach(d => { d.tagged = false; d.element.classList.remove('tagged'); }); updateTagBtn(); }
+function updateTagBtn() {
+  const any = diceState.some(d => d.tagged);
+  clearTagsBtn.disabled = !any;
+}
+function isCellOccupied(col, row, exceptDie) { return diceState.some(d => d !== exceptDie && d.col === col && d.row === row); }
+
+/* ---------- Build die element ---------- */
+function buildDieElement(letter) {
+  const die = document.createElement('div');
+  die.className = 'die throwing';
+  const l = document.createElement('span'); l.className = 'letter'; l.textContent = letter; die.appendChild(l);
+  const p = document.createElement('span'); p.className = 'pts'; p.textContent = digits(letterValue(letter)); die.appendChild(p);
+  return die;
+}
+
+/* ---------- Throw ---------- */
+function throwDice() {
+  clearDice();
+  hintEl.style.display = 'none';
+  doneBtn.disabled = true; findBtn.disabled = true; clearTagsBtn.disabled = true;
+  clearHighlights(); hideSnapPreview();
+  const { cols, rows } = getGridDims();
+  const D = cfg().dice;
+  const used = new Set(), positions = [];
+  for (let i = 0; i < D.length; i++) {
+    let col, row, key, attempts = 0;
+    do { col = Math.floor(Math.random()*cols); row = Math.floor(Math.random()*rows); key = col+','+row; attempts++; }
+    while (used.has(key) && attempts < 300);
+    used.add(key); positions.push({ col, row });
+  }
+  for (let i = 0; i < D.length; i++) {
+    const sides = D[i], topFace = sides[Math.floor(Math.random()*sides.length)];
+    const { col, row } = positions[i];
+    const el = buildDieElement(topFace);
+    const px = cellToPx(col, row);
+    el.style.left = px.x + 'px'; el.style.top = px.y + 'px';
+    el.style.animationDelay = (i * 0.05) + 's';
+    table.appendChild(el);
+    const die = { id: i, sides, topFace, col, row, x: px.x, y: px.y, element: el, tagged: false };
+    diceState.push(die);
+    setupDrag(die);
+    setTimeout(() => { el.classList.remove('throwing'); }, 850 + i*50);
+  }
+  setTimeout(() => { doneBtn.disabled = false; findBtn.disabled = false; }, 850 + (D.length-1)*50 + 50);
+}
+
+/* ---------- Drag (with click-to-tag detection) ---------- */
+/* ---------- Structure (connected group) helpers ---------- *
+ * A "structure" is the 4-connected component of dice reachable from the
+ * grabbed die via orthogonal adjacency — a straight row, a column, or any
+ * attached shape (L, T, cross…). Long-pressing a tile grabs its whole
+ * structure so all attached tiles move and snap together as one unit.
+ */
+const LONG_PRESS_MS = 380;
+function findConnectedStructure(startDie) {
+  const map = buildGridMap();
+  const visited = new Set([startDie.col + ',' + startDie.row]);
+  const stack = [startDie], comp = [];
+  while (stack.length) {
+    const d = stack.pop();
+    comp.push(d);
+    const nbrs = [[d.col+1,d.row],[d.col-1,d.row],[d.col,d.row+1],[d.col,d.row-1]];
+    for (const [c, r] of nbrs) {
+      const k = c + ',' + r;
+      if (visited.has(k)) continue;
+      const nd = map[k];
+      if (nd) { visited.add(k); stack.push(nd); }
+    }
+  }
+  const i = comp.indexOf(startDie);
+  if (i > 0) { comp.splice(i, 1); comp.unshift(startDie); }
+  return comp;
+}
+// Is moving the structure by (dCol,dRow) valid? (in bounds + no collision
+// with dice outside the structure)
+function isOffsetValid(structure, orig, dCol, dRow) {
+  const { cols, rows } = getGridDims();
+  const cells = new Set(orig.map(p => (p.col + dCol) + ',' + (p.row + dRow)));
+  for (let i = 0; i < orig.length; i++) {
+    const nc = orig[i].col + dCol, nr = orig[i].row + dRow;
+    if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) return false;
+  }
+  for (const d of diceState) {
+    if (structure.indexOf(d) >= 0) continue;
+    if (cells.has(d.col + ',' + d.row)) return false;
+  }
+  return true;
+}
+// Walk an offset back toward (0,0) until it is valid (so a blocked move
+// lands as close as possible to the desired spot instead of reverting).
+function clampOffset(structure, orig, dCol, dRow) {
+  let tc = dCol, tr = dRow;
+  while ((tc !== 0 || tr !== 0) && !isOffsetValid(structure, orig, tc, tr)) {
+    if (tc > 0) tc--; else if (tc < 0) tc++;
+    if (tr > 0) tr--; else if (tr < 0) tr++;
+  }
+  return { dCol: tc, dRow: tr };
+}
+
+function setupDrag(die) {
+  const el = die.element;
+  let active = false, moved = false, structureMode = false;
+  let startX = 0, startY = 0, origX = 0, origY = 0;
+  let pressTimer = null;
+  let structure = [], structOrig = [];
+
+  el.addEventListener('pointerdown', (e) => {
+    if (el.classList.contains('throwing')) return;
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch (_) {}  // robust if unsupported
+    active = true; moved = false; structureMode = false;
+    startX = e.clientX; startY = e.clientY; origX = die.x; origY = die.y;
+    // Long-press → grab the whole connected structure.
+    pressTimer = setTimeout(() => {
+      if (!active || moved) return;
+      structure = findConnectedStructure(die);
+      structOrig = structure.map(d => ({ col: d.col, row: d.row, x: d.x, y: d.y }));
+      structureMode = true;
+      structure.forEach(d => { d.element.classList.add('structure', 'engage'); table.appendChild(d.element); });
+      el.classList.add('dragging');
+      clearHighlights();
+      setTimeout(() => { structure.forEach(d => d.element.classList.remove('engage')); }, 300);
+    }, LONG_PRESS_MS);
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!active) return;
+    const dx = e.clientX - startX, dy = e.clientY - startY;
+    // A quick move (>5px) before the long-press fires = single-tile drag.
+    if (!moved && !structureMode && Math.hypot(dx, dy) > 5) {
+      if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+      moved = true;
+      el.classList.add('dragging'); table.appendChild(el); clearHighlights();
+    }
+    if (structureMode) {
+      // Move every tile in the structure by the same delta, clamped to bounds.
+      const { rect } = getGridDims(), size = getDieSize(), cell = getCellSize();
+      structure.forEach((d, i) => {
+        const o = structOrig[i];
+        d.x = Math.max(0, Math.min(rect.width - size, o.x + dx));
+        d.y = Math.max(0, Math.min(rect.height - size, o.y + dy));
+        d.element.style.left = d.x + 'px'; d.element.style.top = d.y + 'px';
+      });
+      // Snap preview at the anchor's target cell if the whole group fits there.
+      const aCx = die.x + size/2, aCy = die.y + size/2;
+      const dCol = Math.round((aCx - cell/2)/cell) - structOrig[0].col;
+      const dRow = Math.round((aCy - cell/2)/cell) - structOrig[0].row;
+      if (isOffsetValid(structure, structOrig, dCol, dRow)) {
+        showSnapPreview(structOrig[0].col + dCol, structOrig[0].row + dRow);
+      } else {
+        hideSnapPreview();
+      }
+    } else if (moved) {
+      const { rect } = getGridDims(), size = getDieSize();
+      die.x = Math.max(0, Math.min(rect.width - size, origX + dx));
+      die.y = Math.max(0, Math.min(rect.height - size, origY + dy));
+      el.style.left = die.x + 'px'; el.style.top = die.y + 'px';
+      const target = findSnapTarget(die.x, die.y, die);
+      if (target) showSnapPreview(target.col, target.row); else hideSnapPreview();
+    }
+  });
+
+  function end(e) {
+    if (!active) return;
+    active = false;
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+    try { el.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (structureMode) {
+      el.classList.remove('dragging');
+      const { cols, rows } = getGridDims(), size = getDieSize(), cell = getCellSize();
+      const aCx = die.x + size/2, aCy = die.y + size/2;
+      let dCol = Math.round((aCx - cell/2)/cell) - structOrig[0].col;
+      let dRow = Math.round((aCy - cell/2)/cell) - structOrig[0].row;
+      dCol = Math.max(-structOrig[0].col, Math.min(cols - 1 - structOrig[0].col, dCol));
+      dRow = Math.max(-structOrig[0].row, Math.min(rows - 1 - structOrig[0].row, dRow));
+      const off = clampOffset(structure, structOrig, dCol, dRow);
+      structure.forEach((d, i) => {
+        d.col = structOrig[i].col + off.dCol;
+        d.row = structOrig[i].row + off.dRow;
+        const px = cellToPx(d.col, d.row);
+        d.x = px.x; d.y = px.y;
+        d.element.style.left = px.x + 'px'; d.element.style.top = px.y + 'px';
+        d.element.classList.remove('structure', 'engage');
+      });
+      hideSnapPreview();
+      structureMode = false; structure = []; structOrig = [];
+    } else if (moved) {
+      el.classList.remove('dragging');
+      const target = findSnapTarget(die.x, die.y, die);
+      if (target) { die.col = target.col; die.row = target.row; }
+      const px = cellToPx(die.col, die.row);
+      die.x = px.x; die.y = px.y;
+      el.style.left = px.x + 'px'; el.style.top = px.y + 'px';
+      hideSnapPreview();
+    } else {
+      // Quick click (no move, long-press never fired) → toggle tag.
+      die.tagged = !die.tagged;
+      el.classList.toggle('tagged', die.tagged);
+      updateTagBtn();
+    }
+  }
+  el.addEventListener('pointerup', end);
+  el.addEventListener('pointercancel', end);
+}
+
+function findSnapTarget(x, y, die) {
+  const size = getDieSize(), cell = getCellSize();
+  const cx = x + size/2, cy = y + size/2;
+  const { cols, rows } = getGridDims();
+  const baseCol = Math.max(0, Math.min(cols-1, Math.round((cx - cell/2)/cell)));
+  const baseRow = Math.max(0, Math.min(rows-1, Math.round((cy - cell/2)/cell)));
+  if (!isCellOccupied(baseCol, baseRow, die)) return { col: baseCol, row: baseRow };
+  for (let radius = 1; radius <= Math.max(cols, rows); radius++) {
+    const cands = [];
+    for (let dc = -radius; dc <= radius; dc++) for (let dr = -radius; dr <= radius; dr++) {
+      if (Math.max(Math.abs(dc), Math.abs(dr)) !== radius) continue;
+      const c = baseCol + dc, r = baseRow + dr;
+      if (c < 0 || c >= cols || r < 0 || r >= rows) continue;
+      if (isCellOccupied(c, r, die)) continue;
+      const cc = cellCenterPx(c, r);
+      cands.push({ col: c, row: r, dist: Math.hypot(cc.x - cx, cc.y - cy) });
+    }
+    if (cands.length) { cands.sort((a,b)=>a.dist-b.dist); return cands[0]; }
+  }
+  return null;
+}
+function showSnapPreview(col, row) { const px = cellToPx(col, row); snapPreview.style.display='block'; snapPreview.style.left=px.x+'px'; snapPreview.style.top=px.y+'px'; }
+function hideSnapPreview() { snapPreview.style.display = 'none'; }
+
+/* ---------- Word detection (direction-aware) ---------- *
+ * Horizontal: LTR reads left→right (start at leftmost, go right).
+ *             RTL reads right→left (start at rightmost, go left).
+ * Vertical: always top→bottom.
+ */
+const MAX_WORD_LEN = 12;
+function buildGridMap() { const m = {}; for (const d of diceState) m[d.col+','+d.row] = d; return m; }
+function findRuns() {
+  const map = buildGridMap(), runs = [], rtl = cfg().dir === 'rtl';
+  for (const d of diceState) {
+    if (rtl) {
+      if (!map[(d.col+1)+','+d.row]) {
+        const run = []; let c = d.col;
+        while (map[c+','+d.row]) { run.push(map[c+','+d.row]); c--; }
+        if (run.length >= cfg().minLen) runs.push({ dice: run, dir: 'H' });
+      }
+    } else {
+      if (!map[(d.col-1)+','+d.row]) {
+        const run = []; let c = d.col;
+        while (map[c+','+d.row]) { run.push(map[c+','+d.row]); c++; }
+        if (run.length >= cfg().minLen) runs.push({ dice: run, dir: 'H' });
+      }
+    }
+    if (!map[d.col+','+(d.row-1)]) {
+      const run = []; let r = d.row;
+      while (map[d.col+','+r]) { run.push(map[d.col+','+r]); r++; }
+      if (run.length >= cfg().minLen) runs.push({ dice: run, dir: 'V' });
+    }
+  }
+  return runs;
+}
+function findWordsInRun(run) {
+  const n = run.length;
+  if (dict.size === 0 || n < cfg().minLen) return [];
+  const dp = new Array(n + 1); dp[n] = { score: 0, words: [] };
+  for (let i = n - 1; i >= 0; i--) {
+    let best = { score: dp[i+1].score, words: dp[i+1].words };
+    const maxLen = Math.min(n - i, MAX_WORD_LEN);
+    for (let len = maxLen; len >= cfg().minLen; len--) {
+      let word = '';
+      for (let k = i; k < i+len; k++) word += run[k].topFace;
+      word = word.toLowerCase();   // dict is lowercase (Persian letters unaffected)
+      if (dict.has(word)) {
+        const rest = dp[i+len], score = len*len + rest.score;
+        if (score > best.score) best = { score, words: [{ word, start: i, len }].concat(rest.words) };
+      }
+    }
+    dp[i] = best;
+  }
+  return dp[0].words.map(w => ({ word: w.word, dice: run.slice(w.start, w.start + w.len) }));
+}
+function findWords() {
+  if (dict.size === 0) return [];
+  const runs = findRuns(), all = [];
+  for (const r of runs) for (const w of findWordsInRun(r.dice)) all.push({ word: w.word, dice: w.dice, dir: r.dir, score: wordScore(w.word) });
+  return all;
+}
+
+/* ---------- Done (score the board) ---------- */
+function done() {
+  if (diceState.length === 0) return;
+  clearHighlights();
+  const words = findWords();
+  resultsModal.classList.add('active'); wordListEl.innerHTML = '';
+  if (words.length === 0) {
+    totalBanner.textContent = lang==='fa' ? 'کلمه‌ای پیدا نشد' : 'No valid words found';
+    totalBanner.classList.add('fail'); noWordsMsg.style.display = 'block'; return;
+  }
+  totalBanner.classList.remove('fail'); noWordsMsg.style.display = 'none';
+  let rs = 0;
+  words.forEach(w => {
+    rs += w.score;
+    const li = document.createElement('li');
+    const ws = document.createElement('span'); ws.className = 'word';
+    const wt = document.createElement('span'); wt.textContent = lang === 'en' ? w.word.toUpperCase() : w.word;
+    const dl = document.createElement('span'); dl.className = 'dir';
+    dl.textContent = w.dir === 'H' ? (lang==='fa' ? '← افقی' : '→ H') : (lang==='fa' ? '↓ عمودی' : '↓ V');
+    ws.appendChild(wt); ws.appendChild(dl);
+    const s = document.createElement('span'); s.className = 'status';
+    s.textContent = '✓ ' + digits(w.score) + (lang==='fa' ? ' امتیاز' : ' pts');
+    li.appendChild(ws); li.appendChild(s); wordListEl.appendChild(li);
+    w.dice.forEach(d => d.element.classList.add('valid'));
+  });
+  totalBanner.textContent = (lang==='fa' ? 'امتیاز این دور: ' : 'Round score: ') + digits(rs);
+  roundScoreEl.textContent = digits(rs);
+  totalScore += rs; totalScoreEl.textContent = digits(totalScore);
+}
+
+/* ---------- Find Words: dictionary lookup with tagged-letter filter ---------- *
+ * Finds all dictionary words that:
+ *   (a) can be spelled using the multiset of 12 shown letters, AND
+ *   (b) contain every tagged letter (with multiplicity).
+ * If no tiles are tagged, condition (b) is vacuous → all formable words.
+ */
+function findFormableWords() {
+  if (diceState.length === 0) return;
+  const avail = {}, tagged = {};
+  diceState.forEach(d => {
+    const l = d.topFace.toLowerCase();   // dict words are lowercase
+    avail[l] = (avail[l]||0) + 1;
+    if (d.tagged) tagged[l] = (tagged[l]||0) + 1;
+  });
+  const hasTags = Object.keys(tagged).length > 0;
+  const minLen = cfg().minLen;
+  // Show searching state, then run heavy loop on next tick.
+  findResults.innerHTML = '<p style="padding:14px;text-align:center;color:#6b7280;">' + cfg().searching + '</p>';
+  findStats.textContent = '';
+  findDesc.innerHTML = hasTags ? cfg().findDescTags : cfg().findDescAll;
+  findModal.classList.add('active');
+
+  setTimeout(() => {
+    const results = [];
+    for (let i = 0; i < wordsArr.length; i++) {
+      const word = wordsArr[i];
+      const wl = word.length;
+      if (wl < minLen || wl > 12) continue;
+      // Build word frequency; bail early if a letter exceeds availability.
+      const wf = {};
+      let ok = true;
+      for (let k = 0; k < wl; k++) {
+        const ch = word[k];
+        const c = (wf[ch]||0) + 1; wf[ch] = c;
+        if (c > (avail[ch]||0)) { ok = false; break; }
+      }
+      if (!ok) continue;
+      if (hasTags) {
+        for (const ch in tagged) {
+          if ((wf[ch]||0) < tagged[ch]) { ok = false; break; }
+        }
+        if (!ok) continue;
+      }
+      results.push({ word, len: wl, score: wordScore(word) });
+    }
+    results.sort((a,b) => b.len - a.len || b.score - a.score || (a.word < b.word ? -1 : 1));
+    renderFindResults(results, hasTags, tagged, avail);
+  }, 30);
+}
+function renderFindResults(results, hasTags, tagged, avail) {
+  const c = cfg();
+  if (results.length === 0) {
+    findStats.textContent = '';
+    findResults.innerHTML = '<p style="padding:14px;text-align:center;color:#c62828;font-weight:600;">' + c.noMatches + '</p>';
+    return;
+  }
+  findStats.textContent = c.foundN(results.length) + (hasTags
+    ? (lang==='fa' ? '' : ' (longest first)')
+    : (lang==='fa' ? '' : ' (longest first, click tiles to filter)'));
+  const cap = 400;
+  const shown = results.slice(0, cap);
+  const html = shown.map(r => {
+    const wDisp = lang === 'fa' ? r.word : r.word.toUpperCase();
+    return '<div class="fw-item"><span class="fw-word">' + wDisp + '</span>' +
+           '<span class="fw-meta">' + digits(r.len) + (lang==='fa'?' حرف':' letters') +
+           ' · <b>' + digits(r.score) + (lang==='fa'?' امتیاز':' pts') + '</b></span></div>';
+  }).join('');
+  let extra = '';
+  if (results.length > cap) extra = '<div class="fw-item" style="justify-content:center;color:#6b7280;">' +
+    (lang==='fa' ? '… و ' + digits(results.length - cap) + ' کلمه دیگر' : '… and ' + (results.length - cap).toLocaleString() + ' more') + '</div>';
+  findResults.innerHTML = html + extra;
+}
+
+/* ---------- Distribution modal ---------- */
+function showDistribution() {
+  const c = cfg(), dice = c.dice;
+  const counts = {}; dice.flat().forEach(l => counts[l] = (counts[l]||0)+1);
+  const total = dice.length * 6;
+  const order = Object.keys(counts).sort((a,b) => counts[b]-counts[a]);
+  distGrid.innerHTML = order.map(l => {
+    const n = counts[l], pct = (n/total*100).toFixed(1);
+    return '<div class="dist-cell"><span class="L">' + l + '</span>' +
+           '<span class="N">' + digits(n) + (lang==='fa'?' وجه':' faces') + '</span>' +
+           '<span class="P">' + digits(pct) + '%</span></div>';
+  }).join('');
+  infoModal.classList.add('active');
+}
+
+/* ---------- Reset ---------- */
+function resetGame() {
+  clearDice(); totalScore = 0;
+  roundScoreEl.textContent = digits(0); totalScoreEl.textContent = digits(0);
+  hintEl.style.display = ''; doneBtn.disabled = true; findBtn.disabled = true; clearTagsBtn.disabled = true;
+  hideSnapPreview();
+}
+
+/* ---------- Resize ---------- */
+function clampDice() {
+  const { cols, rows } = getGridDims();
+  diceState.forEach(d => {
+    if (d.col >= cols) d.col = cols-1; if (d.row >= rows) d.row = rows-1;
+    if (d.col < 0) d.col = 0; if (d.row < 0) d.row = 0;
+    let g = 0; while (isCellOccupied(d.col, d.row, d) && g < cols*rows) { d.col = (d.col+1)%cols; if (d.col===0) d.row = (d.row+1)%rows; g++; }
+    const px = cellToPx(d.col, d.row); d.x = px.x; d.y = px.y;
+    d.element.style.left = px.x+'px'; d.element.style.top = px.y+'px';
+  });
+}
+window.addEventListener('resize', clampDice);
+
+/* ---------- Wire up ---------- */
+throwBtn.addEventListener('click', () => { clearHighlights(); throwDice(); });
+doneBtn.addEventListener('click', done);
+findBtn.addEventListener('click', findFormableWords);
+clearTagsBtn.addEventListener('click', clearTags);
+resetBtn.addEventListener('click', resetGame);
+helpBtn.addEventListener('click', () => helpModal.classList.add('active'));
+infoBtn.addEventListener('click', showDistribution);
+['close-results','close-info','close-help','close-find'].forEach(id => {
+  const btn = $(id); const modal = btn.closest('.modal-overlay');
+  btn.addEventListener('click', () => modal.classList.remove('active'));
+});
+[resultsModal, infoModal, helpModal, findModal].forEach(o => {
+  o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('active'); });
+});
+$('lang-en').addEventListener('click', () => switchLang('en'));
+$('lang-fa').addEventListener('click', () => switchLang('fa'));
+table.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+
+/* ---------- Init ---------- */
+loadDict();
+updateUITexts();
+</script>
+</body>
+</html>
