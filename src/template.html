@@ -102,34 +102,64 @@
   .die {
     position: absolute; width: var(--die-size); height: var(--die-size);
     cursor: grab; -webkit-user-select: none; user-select: none; touch-action: none;
-    will-change: transform, left, top;
-    background: linear-gradient(145deg, #ffffff 0%, #e0e4ec 100%);
-    border: 2px solid #1e3a5f; border-radius: 14%;
-    display: flex; align-items: center; justify-content: center; color: #1e3a5f;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6);
-    z-index: 2;
-    transition: left 0.18s cubic-bezier(0.4,1.4,0.5,1), top 0.18s cubic-bezier(0.4,1.4,0.5,1), transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s;
+    will-change: transform, left, top; color: #1e3a5f; z-index: 2;
+    transition: left 0.18s cubic-bezier(0.4,1.4,0.5,1), top 0.18s cubic-bezier(0.4,1.4,0.5,1), transform 0.15s ease;
   }
   .die:hover { transform: translateY(-3px); }
-  .die.dragging { z-index: 100; cursor: grabbing; transition: none; transform: translateY(-6px) scale(1.04); box-shadow: 0 14px 20px rgba(0,0,0,0.55), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
+  .die.dragging { z-index: 100; cursor: grabbing; transition: none; transform: translateY(-6px) scale(1.04); }
+  .die.dragging .face.top { box-shadow: 0 14px 20px rgba(0,0,0,0.55), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
+
+  /* 3D cube: six faces. The TOP face carries the rolled letter used in the game
+     (+ its points); the front and right faces show two OTHER letters from the
+     same die, so three characters are visible. Rotated so top + front + right
+     show. The first grab of any die drops .cube so the cubes collapse to the
+     flat top-surface view used for forming words. */
+  .die .cube { position: absolute; inset: 0; transform-style: preserve-3d; transform: none; transition: transform 0.45s ease; }
+  .die.cube .cube { transform: rotateX(-30deg) rotateY(-30deg) scale(0.78); }
+  .die .face {
+    position: absolute; inset: 0; border: 2px solid #1e3a5f; border-radius: 14%;
+    backface-visibility: hidden; pointer-events: none;
+    transition: transform 0.45s ease, opacity 0.3s ease, box-shadow 0.15s ease, border-color 0.15s, background 0.15s;
+  }
+  /* TOP face = the game letter (rolled topFace) + points. Faces the viewer when
+     flat (translateZ 0); lies on top of the cube when 3D (rotateX(90)). */
+  .die .face.top {
+    background: linear-gradient(145deg, #ffffff 0%, #e0e4ec 100%);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6);
+    transform: translateZ(0);
+  }
+  .die.cube .face.top { transform: rotateX(90deg) translateZ(calc(var(--die-size) * 0.5)); }
+  /* Front + right faces carry the other two die letters (no points). */
+  .die .face.front { transform: rotateY(  0deg) translateZ(calc(var(--die-size) * 0.5)); background: linear-gradient(145deg,#f1f3f8,#d6dbe6); display: flex; align-items: center; justify-content: center; }
+  .die .face.right  { transform: rotateY( 90deg) translateZ(calc(var(--die-size) * 0.5)); background: linear-gradient(145deg,#d6dbe6,#b8c0ce); display: flex; align-items: center; justify-content: center; }
+  /* Remaining (hidden) faces. */
+  .die .face.left   { transform: rotateY(-90deg) translateZ(calc(var(--die-size) * 0.5)); background: linear-gradient(145deg,#d6dbe6,#b8c0ce); }
+  .die .face.back   { transform: rotateY(180deg) translateZ(calc(var(--die-size) * 0.5)); background: linear-gradient(145deg,#e6eaf2,#c8cfdb); }
+  .die .face.bottom { transform: rotateX(-90deg) translateZ(calc(var(--die-size) * 0.5)); background: linear-gradient(145deg,#b8c0ce,#9aa3b2); }
+  .die:not(.cube) .face:not(.top) { opacity: 0; }
+
   .die .letter { font-size: calc(var(--die-size) * 0.55); font-weight: 900; line-height: 1; pointer-events: none; text-shadow: 0 1px 0 rgba(255,255,255,0.5); }
+  /* Side-face letters: slightly smaller + dimmer so the top (game) letter dominates. */
+  .die .letter.side { font-size: calc(var(--die-size) * 0.46); font-weight: 800; opacity: 0.82; }
   .die .pts { position: absolute; bottom: calc(var(--die-size) * 0.06); right: calc(var(--die-size) * 0.1); font-size: calc(var(--die-size) * 0.2); color: #4a5a72; font-weight: 700; pointer-events: none; line-height: 1; }
   /* RTL: move pts to bottom-left */
   html[dir="rtl"] .die .pts { right: auto; left: calc(var(--die-size) * 0.1); }
   html[dir="rtl"] .die .letter { font-size: calc(var(--die-size) * 0.6); font-weight: 700; }
 
-  /* Tagged die — gold ring */
-  .die.tagged { border-color: #ffd84d; border-width: 3px; box-shadow: 0 0 0 3px rgba(255,216,77,0.55), 0 4px 10px rgba(0,0,0,0.45), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
+  /* Tagged die — gold ring on the top (game) face */
+  .die.tagged .face.top { border-color: #ffd84d; border-width: 3px; box-shadow: 0 0 0 3px rgba(255,216,77,0.55), 0 4px 10px rgba(0,0,0,0.45), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
   .die.tagged .pts { color: #b8860b; }
 
   /* Structure (connected group) — cyan glow when grabbed via long-press */
-  .die.structure { border-color: #6dd5ed; box-shadow: 0 0 0 3px rgba(109,213,237,0.6), 0 6px 14px rgba(0,0,0,0.5), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); z-index: 3; }
+  .die.structure .face.top { border-color: #6dd5ed; box-shadow: 0 0 0 3px rgba(109,213,237,0.6), 0 6px 14px rgba(0,0,0,0.5), inset 0 -3px 6px rgba(0,0,0,0.12), inset 0 2px 3px rgba(255,255,255,0.6); }
+  .die.structure { z-index: 3; }
   @keyframes structureEngage { 0% { transform: scale(1); } 45% { transform: scale(1.07); } 100% { transform: scale(1); } }
   .die.structure.engage { animation: structureEngage 0.28s ease-out; }
 
-  .die.valid { background: linear-gradient(145deg, #c8f0d0 0%, #7fd495 100%) !important; border-color: #1a4a26; }
+  .die.valid .face.top { background: linear-gradient(145deg, #c8f0d0 0%, #7fd495 100%) !important; border-color: #1a4a26; }
   .die.valid .letter { color: #1a4a26; }
-  .die.invalid { background: linear-gradient(145deg, #f7c8c8 0%, #d97a7c 100%) !important; border-color: #5a1a1a; }
+  .die.invalid .face.top { background: linear-gradient(145deg, #f7c8c8 0%, #d97a7c 100%) !important; border-color: #5a1a1a; }
 
   @keyframes dropIn {
     0% { transform: translateY(-110vh) rotate(-8deg); opacity: 0; }
@@ -332,6 +362,7 @@ let lang = 'en';
 let dict = new Set();
 let wordsArr = [];
 let diceState = [];
+let board3D = false;        // true while the thrown dice are shown as 3D cubes
 let totalScore = 0;
 
 const $ = (id) => document.getElementById(id);
@@ -424,6 +455,11 @@ function cellCenterPx(col, row) {
   return { x: col * cell + cell / 2, y: row * cell + cell / 2 };
 }
 function clearDice() { diceState.forEach(d => d.element.remove()); diceState = []; }
+// First grab of any 3D die: collapse every die to its flat top-surface view.
+function collapseDiceToFlat() {
+  board3D = false;
+  diceState.forEach(d => d.element.classList.remove('cube'));
+}
 function clearHighlights() { diceState.forEach(d => d.element.classList.remove('valid', 'invalid')); }
 function clearTags() { diceState.forEach(d => { d.tagged = false; d.element.classList.remove('tagged'); }); updateTagBtn(); }
 function updateTagBtn() {
@@ -433,17 +469,34 @@ function updateTagBtn() {
 function isCellOccupied(col, row, exceptDie) { return diceState.some(d => d !== exceptDie && d.col === col && d.row === row); }
 
 /* ---------- Build die element ---------- */
-function buildDieElement(letter) {
+function buildDieElement(topFace, sideA, sideB) {
   const die = document.createElement('div');
-  die.className = 'die throwing';
-  const l = document.createElement('span'); l.className = 'letter'; l.textContent = letter; die.appendChild(l);
-  const p = document.createElement('span'); p.className = 'pts'; p.textContent = digits(letterValue(letter)); die.appendChild(p);
+  die.className = 'die throwing cube';     // starts as a 3D cube; flattens on first grab
+  const cube = document.createElement('div'); cube.className = 'cube';
+  // TOP face = the rolled letter used in the game (carries the points too).
+  const top = document.createElement('div'); top.className = 'face top';
+  const l = document.createElement('span'); l.className = 'letter'; l.textContent = topFace; top.appendChild(l);
+  const p = document.createElement('span'); p.className = 'pts'; p.textContent = digits(letterValue(topFace)); top.appendChild(p);
+  cube.appendChild(top);
+  // Front + right faces show two OTHER letters from the same die, so the cube
+  // reads as a real die with three visible characters.
+  const front = document.createElement('div'); front.className = 'face front';
+  const fl = document.createElement('span'); fl.className = 'letter side'; fl.textContent = sideA; front.appendChild(fl);
+  cube.appendChild(front);
+  const right = document.createElement('div'); right.className = 'face right';
+  const rl = document.createElement('span'); rl.className = 'letter side'; rl.textContent = sideB; right.appendChild(rl);
+  cube.appendChild(right);
+  for (const f of ['left','back','bottom']) {
+    const face = document.createElement('div'); face.className = 'face ' + f; cube.appendChild(face);
+  }
+  die.appendChild(cube);
   return die;
 }
 
 /* ---------- Throw ---------- */
 function throwDice() {
   clearDice();
+  board3D = true;            // new dice appear as 3D cubes until the first grab
   hintEl.style.display = 'none';
   doneBtn.disabled = true; findBtn.disabled = true; clearTagsBtn.disabled = true;
   clearHighlights(); hideSnapPreview();
@@ -458,8 +511,12 @@ function throwDice() {
   }
   for (let i = 0; i < D.length; i++) {
     const sides = D[i], topFace = sides[Math.floor(Math.random()*sides.length)];
+    // Two OTHER letters from the same die decorate the visible side faces.
+    const others = sides.filter(s => s !== topFace);
+    const sideA = others[0] || sides[0];
+    const sideB = others[1] || sides[1] || sideA;
     const { col, row } = positions[i];
-    const el = buildDieElement(topFace);
+    const el = buildDieElement(topFace, sideA, sideB);
     const px = cellToPx(col, row);
     el.style.left = px.x + 'px'; el.style.top = px.y + 'px';
     el.style.animationDelay = (i * 0.05) + 's';
@@ -534,6 +591,7 @@ function setupDrag(die) {
 
   el.addEventListener('pointerdown', (e) => {
     if (el.classList.contains('throwing')) return;
+    if (board3D) collapseDiceToFlat();   // first grab reveals the flat board for forming words
     e.preventDefault();
     try { el.setPointerCapture(e.pointerId); } catch (_) {}  // robust if unsupported
     active = true; moved = false; structureMode = false;
