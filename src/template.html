@@ -379,8 +379,11 @@ BOOKS.forEach(b => {
     dir: b.dir, langAttr: b.langAttr, digits: b.digits, minLen: 3,
     title: '🎲 ' + b.title,
     infoDesc1: (b.dir === 'rtl'
-      ? '۷۲ وجه ۱۲ تاس بر اساس فراوانی حروف متن «' + b.title + '» توزیع شده است.'
-      : 'The 72 letter faces are distributed by letter frequency in "' + b.title + '".'),
+      ? toPersianDigits(b.numFaces) + ' وجه ' + toPersianDigits(b.numDice) + ' تاس بر اساس فراوانی حروف متن «' + b.title + '» توزیع شده است.'
+      : 'The ' + b.numFaces + ' letter faces across ' + b.numDice + ' dice are distributed by letter frequency in "' + b.title + '".'),
+    hint: (b.dir === 'rtl'
+      ? '<span class="big">🎲</span>دکمه «پرتاب تاس‌ها» را بزنید تا ' + toPersianDigits(b.numDice) + ' تاس روی شبکه بیفتد.<br>تاس‌ها را در ردیف (افقی) یا ستون (عمودی) بچینید تا کلمه بسازید. برای <b>نشان‌گذاری</b> یک تاس، روی آن <b>کلیک</b> کنید، سپس «جستجوی کلمات» کلمات قابل ساخت از تاس‌های روی میز که حروف نشان‌گذاری‌شده را دارند نشان می‌دهد.'
+      : '<span class="big">🎲</span>Press <b>Throw Dice</b> to roll all ' + b.numDice + ' tiles onto the grid.<br>Drag tiles into a row or column to spell a word. <b>Click a tile to tag it</b>, then <b>Find Words</b> shows all dictionary words formable from the shown letters that contain your tagged letters.'),
   });
 });
 

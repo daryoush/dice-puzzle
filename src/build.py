@@ -2,9 +2,10 @@
 """Build the Dice Puzzle game (dist/index.html) from source + data + books.
 
 For every book in books/*.txt the script:
-  * extracts the distinct words   -> data/<slug>_words.txt
-  * builds a frequency-weighted 12x6 dice config + letter values
-                                    -> data/<slug>_dice.json
+  * extracts the distinct words (letters only -- no punctuation/digits/diacritics)
+                                    -> data/<slug>_words.txt
+  * builds a frequency-weighted dice config (16 dice x 6 faces for books)
+    + Scrabble-like letter values  -> data/<slug>_dice.json
   * auto-detects RTL (Arabic/Persian script) vs LTR (Latin)
   * embeds every book config into dist via the __BOOKS__ placeholder
 """
@@ -20,25 +21,37 @@ SRC = ROOT / "src"
 DIST = ROOT / "dist"
 BOOKS = ROOT / "books"
 
-NUM_DICE = 12
+NUM_DICE = 12            # standard EN/FA dice count
+BOOK_NUM_DICE = 16       # books use a larger set so longer words can be formed
 FACES_PER_DIE = 6
-TOTAL_FACES = NUM_DICE * FACES_PER_DIE   # 72
 MIN_WORD = 3
 
-# Arabic/Persian letter ranges (used for RTL detection + word/letter extraction).
-_ARABIC = re.compile(r"[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]")
+# Arabic/Persian LETTERS only. The Arabic Unicode block also holds punctuation
+# (، ؟ ؛), digits (٠-٩), tashkil diacritics, and tatweel (ـ) -- none of those
+# belong in words or on dice, so we match a precise letter set instead of the
+# whole \u0600-\u06FF range.
+_AR_LETTER_CHARS = (
+    "\u0621-\u063A"                           # ء .. غ  (hamza forms + base letters)
+    "\u0641-\u064A"                           # ف .. ي
+    "\u067E\u0686\u0698\u06A9\u06AF\u06CC"    # پ چ ژ ک گ ی  (Persian-only letters)
+)
+_AR_LETTER = re.compile(f"[{_AR_LETTER_CHARS}]")
+# Combining marks / tashkil / Quranic marks -- stripped before extraction so they
+# don't split a word into fragments.
+_AR_COMBINING = re.compile(
+    "[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4"
+    "\u06E7-\u06E8\u06EA-\u06ED]"
+)
+_TATWEEL = "\u0640"                           # ـ  (kashida/tatweel lengthener)
 _LATIN = re.compile(r"[A-Za-z]")
 _LATIN_WORD = re.compile(r"[A-Za-z]+")
-# An Arabic-script word may contain a ZWNJ (\u200c) between letter runs.
-_ARABIC_WORD = re.compile(
-    r"[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+"
-    r"(?:\u200c[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+)*"
-)
+# A word = a run of letters, optionally joined inside by ZWNJ (\u200c).
+_AR_WORD = re.compile(f"[{_AR_LETTER_CHARS}]+(?:\u200c[{_AR_LETTER_CHARS}]+)*")
 
 
 def is_rtl_text(text):
     """RTL if Arabic-script letters outnumber Latin letters in the text."""
-    return len(_ARABIC.findall(text)) > len(_LATIN.findall(text))
+    return len(_AR_LETTER.findall(text)) > len(_LATIN.findall(text))
 
 
 def slugify(name):
@@ -49,8 +62,8 @@ def slugify(name):
 
 def extract_words(text, rtl):
     if rtl:
-        raw = _ARABIC_WORD.findall(text)
-        words = [w for w in raw if len(w) >= MIN_WORD]
+        t = _AR_COMBINING.sub("", text).replace(_TATWEEL, "")
+        words = [w for w in _AR_WORD.findall(t) if len(w) >= MIN_WORD]
     else:
         words = [w.lower() for w in _LATIN_WORD.findall(text) if len(w) >= MIN_WORD]
     return sorted(set(words))
@@ -58,22 +71,24 @@ def extract_words(text, rtl):
 
 def letter_freq(text, rtl):
     if rtl:
-        return Counter(_ARABIC.findall(text))
+        t = _AR_COMBINING.sub("", text).replace(_TATWEEL, "")
+        return Counter(_AR_LETTER.findall(t))
     return Counter(c.upper() for c in _LATIN.findall(text))
 
 
-def make_dice(freq):
-    """12 dice x 6 faces, weighted by frequency, 6 distinct letters per die."""
+def make_dice(freq, num_dice=NUM_DICE):
+    """num_dice dice x 6 faces, weighted by frequency, 6 distinct letters per die."""
+    total_faces = num_dice * FACES_PER_DIE
     alphabet = [ch for ch, _ in freq.most_common()]   # most frequent first
     if not alphabet:
-        return [["E", "A", "I", "O", "U", "T"] for _ in range(NUM_DICE)]
+        return [["E", "A", "I", "O", "U", "T"] for _ in range(num_dice)]
     total = sum(freq.values())
     targets = {}
     for ch in alphabet:
-        t = round(TOTAL_FACES * freq[ch] / total)
-        targets[ch] = max(1, min(NUM_DICE, t))
-    # Adjust so the targets sum to exactly TOTAL_FACES (72).
-    diff = TOTAL_FACES - sum(targets.values())
+        t = round(total_faces * freq[ch] / total)
+        targets[ch] = max(1, min(num_dice, t))
+    # Adjust so the targets sum to exactly total_faces.
+    diff = total_faces - sum(targets.values())
     guard = 0
     while diff != 0 and guard < 10000:
         guard += 1
@@ -81,7 +96,7 @@ def make_dice(freq):
             for ch in alphabet:                       # add to frequent letters
                 if diff == 0:
                     break
-                if targets[ch] < NUM_DICE:
+                if targets[ch] < num_dice:
                     targets[ch] += 1
                     diff -= 1
         else:
@@ -93,10 +108,10 @@ def make_dice(freq):
                     diff += 1
     # Distribute: place each letter on `targets[ch]` dice that have the most free
     # slots and do not already carry that letter (keeps each die's 6 letters distinct).
-    dice = [[] for _ in range(NUM_DICE)]
+    dice = [[] for _ in range(num_dice)]
     for ch in alphabet:
         n = targets[ch]
-        order = sorted(range(NUM_DICE),
+        order = sorted(range(num_dice),
                        key=lambda i: (-(FACES_PER_DIE - len(dice[i])), ch in dice[i]))
         placed = 0
         for i in order:
@@ -143,7 +158,7 @@ def process_book(path):
     title = path.stem.strip()
     words = extract_words(text, rtl)
     freq = letter_freq(text, rtl)
-    dice = make_dice(freq)
+    dice = make_dice(freq, BOOK_NUM_DICE)
     values = make_values(freq)
     (DATA / f"{slug}_words.txt").write_text("\n".join(words), encoding="utf-8")
     (DATA / f"{slug}_dice.json").write_text(
@@ -159,6 +174,8 @@ def process_book(path):
         "values": values,
         "wordsStr": "\n".join(words),
         "wordCount": len(words),
+        "numDice": BOOK_NUM_DICE,
+        "numFaces": BOOK_NUM_DICE * FACES_PER_DIE,
         "top": [ch for ch, _ in freq.most_common(6)],
     }
 
