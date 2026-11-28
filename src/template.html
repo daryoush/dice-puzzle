@@ -41,6 +41,15 @@
   }
   .lang-toggle button.active { background: #ffd84d; color: #1e3a5f; }
 
+  /* Book drop-down (beside the EN / فا toggle) */
+  .book-select {
+    font-family: inherit; font-size: clamp(0.78rem,2vw,0.95rem); font-weight: 700;
+    padding: 5px 10px; border: 1px solid rgba(255,255,255,0.25); border-radius: 999px;
+    background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; max-width: 42vw;
+  }
+  .book-select:focus { outline: 2px solid #ffd84d; }
+  .book-select option { color: #1e3a5f; background: #fff; }
+
   .score-block { display: flex; gap: 8px; flex-wrap: wrap; font-size: clamp(0.85rem,2.3vw,1rem); }
   .score-pill { padding: 5px 12px; background: rgba(255,255,255,0.12); border-radius: 999px; font-weight: 600; white-space: nowrap; }
   .score-pill b { color: #ffd84d; font-weight: 800; }
@@ -232,6 +241,9 @@
         <button id="lang-en" class="active">EN</button>
         <button id="lang-fa">فا</button>
       </div>
+      <select id="book-select" class="book-select" title="Play from a book">
+        <option value="">📚 Books…</option>
+      </select>
       <div class="score-block">
         <span class="score-pill"><span id="round-label">Round</span>: <b id="round-score">0</b></span>
         <span class="score-pill"><span id="total-label">Total</span>: <b id="total-score">0</b></span>
@@ -356,6 +368,21 @@ const CONFIGS = {
     rules: '<ol><li>دکمه «پرتاب تاس‌ها» را بزنید. هر تاس یک حرف تصادفی از ۶ وجه خود را نشان می‌دهد و روی یک خانه شبکه می‌افتد.</li><li>تاس‌ها را با کشیدن جابه‌جا کنید. کادر نقطه‌چین نزدیک‌ترین خانه خالی را نشان می‌دهد. دو تاس در یک خانه جای نمی‌گیرند.</li><li><b>جابه‌جایی کل ساختار:</b> روی یک تاس <b>نگه دارید</b> (حدود ۰٫۴ ثانیه بدون حرکت) تا کل گروه متصل به آن — تاس‌های چسبیده در ردیف، ستون یا شکل — با رنگ فیروزه‌ای مشخص شوند و با هم حرکت کنند و به صورت یک گروه چفت شوند تا کلمه‌ای که ساخته‌اید دست‌نخورده بماند.</li><li>تاس‌ها را در یک <b>ردیف افقی</b> (خوانده از راست به چپ) یا <b>ستون عمودی</b> (از بالا به پایین) بچینید تا کلمه بسازید. کلمات باید حداقل ۳ حرف باشند.</li><li>دکمه «تمام» را بزنید. بازی در هر خط <b>بلندترین کلمه معتبر</b> را پیدا کرده و امتیاز می‌دهد.</li><li><b>نشان‌گذاری و جستجو:</b> روی یک تاس <b>کلیک</b> کنید تا نشان‌گذاری شود (حلقه طلایی). دکمه «جستجوی کلمات» همه کلمات قابل ساخت از ۱۲ تاس که <b>حروف نشان‌گذاری‌شده</b> را دارند نشان می‌دهد. بدون نشان، همه کلمات قابل ساخت را نشان می‌دهد.</li><li>با دکمه <b>EN / فا</b> بین انگلیسی و فارسی جابه‌جا شوید. امتیاز کل در طول بازی جمع می‌شود.</li></ol>',
   },
 };
+const BOOKS = __BOOKS__;
+/* Register a CONFIGS entry for each book: reuse the EN or FA UI strings (by
+ * direction) and override dice/values/words/dir/title so the book plays with
+ * its own frequency-weighted dice and its own vocabulary. */
+BOOKS.forEach(b => {
+  const base = b.dir === 'rtl' ? CONFIGS.fa : CONFIGS.en;
+  CONFIGS['book:' + b.key] = Object.assign({}, base, {
+    dice: b.dice, values: b.values, wordsStr: b.wordsStr,
+    dir: b.dir, langAttr: b.langAttr, digits: b.digits, minLen: 3,
+    title: '🎲 ' + b.title,
+    infoDesc1: (b.dir === 'rtl'
+      ? '۷۲ وجه ۱۲ تاس بر اساس فراوانی حروف متن «' + b.title + '» توزیع شده است.'
+      : 'The 72 letter faces are distributed by letter frequency in "' + b.title + '".'),
+  });
+});
 
 /* ---------- State ---------- */
 let lang = 'en';
@@ -378,7 +405,7 @@ const table = $('table'), throwBtn = $('throw-btn'), doneBtn = $('done-btn'),
 
 function cfg() { return CONFIGS[lang]; }
 function toPersianDigits(n) { const m = '۰۱۲۳۴۵۶۷۸۹'; return String(n).replace(/\d/g, d => m[+d]); }
-function digits(n) { return lang === 'fa' ? toPersianDigits(n) : String(n); }
+function digits(n) { return cfg().dir === 'rtl' ? toPersianDigits(n) : String(n); }
 function letterValue(l) {
   const v = cfg().values;
   // dict words are lowercase (Persian has no case); EN_VALUES uses uppercase keys.
@@ -420,9 +447,10 @@ function updateUITexts() {
   $('info-desc2').textContent = c.infoDesc2;
   $('help-title').textContent = c.helpTitle;
   rulesBody.innerHTML = c.rules;
-  dictStatus.textContent = '📚 ' + digits(dict.size) + (lang==='fa'?' کلمه':' words');
+  dictStatus.textContent = '📚 ' + digits(dict.size) + (c.dir === 'rtl' ? ' کلمه' : ' words');
   $('lang-en').classList.toggle('active', lang === 'en');
   $('lang-fa').classList.toggle('active', lang === 'fa');
+  $('book-select').value = lang.startsWith('book:') ? lang.slice(5) : '';
   roundScoreEl.textContent = digits(0);
   totalScoreEl.textContent = digits(totalScore);
 }
@@ -925,11 +953,20 @@ infoBtn.addEventListener('click', showDistribution);
 [resultsModal, infoModal, helpModal, findModal].forEach(o => {
   o.addEventListener('click', (e) => { if (e.target === o) o.classList.remove('active'); });
 });
-$('lang-en').addEventListener('click', () => switchLang('en'));
-$('lang-fa').addEventListener('click', () => switchLang('fa'));
+$('lang-en').addEventListener('click', () => { $('book-select').value = ''; switchLang('en'); });
+$('lang-fa').addEventListener('click', () => { $('book-select').value = ''; switchLang('fa'); });
+$('book-select').addEventListener('change', () => {
+  const key = $('book-select').value;
+  if (key) switchLang('book:' + key);
+});
 table.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 
 /* ---------- Init ---------- */
+BOOKS.forEach(b => {
+  const o = document.createElement('option');
+  o.value = b.key; o.textContent = b.title;
+  $('book-select').appendChild(o);
+});
 loadDict();
 updateUITexts();
 </script>
